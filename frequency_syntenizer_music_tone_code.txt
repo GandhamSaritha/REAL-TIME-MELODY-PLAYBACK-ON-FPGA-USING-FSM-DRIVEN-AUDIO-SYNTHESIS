@@ -1,0 +1,327 @@
+`timescale 1ns / 1ps
+///////////////////////////////////////////////////////////////////////////////
+// Project      : FPGA Song Generator (Imperial March – FSM Based)
+// Target Board : Edge Artix-7 (50 MHz)
+// Description  : Plays a predefined song using FSM-controlled note timing
+// Clock        : 50 MHz
+//
+// Created by   : Tejesh
+// Organization : SSIT Pvt Ltd
+///////////////////////////////////////////////////////////////////////////////
+
+module song_top(
+    input  clk_50MHz,     // 50 MHz clock from Edge Artix-7
+    input  play,           // push button
+    output speaker         // speaker output
+);
+
+    // -------------------------------------------------
+    // Button debounce / synchronizer
+    // -------------------------------------------------
+    reg x, y, z;
+    always @(posedge clk_50MHz) begin
+        x <= play;
+        y <= x;
+        z <= y;
+    end
+    wire w_play = z;
+
+    // -------------------------------------------------
+    // Tone signals
+    // -------------------------------------------------
+    wire a, cH, eH, fH, f, gS;
+
+    // -------------------------------------------------
+    // Tone generators (MUST be 50 MHz based internally)
+    // -------------------------------------------------
+    a_440Hz  t_a  (.clk(clk_50MHz), .o_440Hz(a));
+    cH_523Hz t_cH (.clk(clk_50MHz), .o_523Hz(cH));
+    eH_659Hz t_eH (.clk(clk_50MHz), .o_659Hz(eH));
+    fH_698Hz t_fH (.clk(clk_50MHz), .o_698Hz(fH));
+    f_349Hz  t_f  (.clk(clk_50MHz), .o_349Hz(f));
+    gS_415Hz t_gS (.clk(clk_50MHz), .o_415Hz(gS));
+
+    // -------------------------------------------------
+    // Clock frequency (Edge Artix-7)
+    // -------------------------------------------------
+    parameter CLK_FREQ = 50_000_000; // 50 MHz
+
+    // -------------------------------------------------
+    // Note timing delays
+    // -------------------------------------------------
+    parameter integer D_500ms = 0.50 * CLK_FREQ;
+    parameter integer D_350ms = 0.35 * CLK_FREQ;
+    parameter integer D_150ms = 0.15 * CLK_FREQ;
+    parameter integer D_650ms = 0.65 * CLK_FREQ;
+    parameter integer D_break = 0.10 * CLK_FREQ;
+
+    // -------------------------------------------------
+    // Delay counter and flags
+    // -------------------------------------------------
+    reg [25:0] count = 26'd0;
+    reg counter_clear = 1'b0;
+
+    reg flag_500ms = 0;
+    reg flag_350ms = 0;
+    reg flag_150ms = 0;
+    reg flag_650ms = 0;
+    reg flag_break = 0;
+
+    // -------------------------------------------------
+    // FSM state register (string-based – kept as original)
+    // -------------------------------------------------
+    reg [31:0] state = "idle";
+
+    // -------------------------------------------------
+    // Counter + FSM
+    // -------------------------------------------------
+    always @(posedge clk_50MHz) begin
+
+        // Clear counter and flags
+        if (counter_clear) begin
+            count        <= 0;
+            counter_clear<= 0;
+            flag_500ms   <= 0;
+            flag_350ms   <= 0;
+            flag_150ms   <= 0;
+            flag_650ms   <= 0;
+            flag_break   <= 0;
+        end
+        else begin
+            count <= count + 1;
+            if (count == D_break) flag_break <= 1;
+            if (count == D_150ms) flag_150ms <= 1;
+            if (count == D_350ms) flag_350ms <= 1;
+            if (count == D_500ms) flag_500ms <= 1;
+            if (count == D_650ms) flag_650ms <= 1;
+        end
+
+        // -------------------------------------------------
+        // FSM sequencing
+        // -------------------------------------------------
+        case (state)
+
+            "idle": begin
+                counter_clear <= 1;
+                if (w_play)
+                    state <= "n1";
+            end
+
+            "n1" : if (flag_500ms) begin counter_clear <= 1; state <= "b1"; end
+            "b1" : if (flag_break) begin counter_clear <= 1; state <= "n2"; end
+            "n2" : if (flag_500ms) begin counter_clear <= 1; state <= "b2"; end
+            "b2" : if (flag_break) begin counter_clear <= 1; state <= "n3"; end
+            "n3" : if (flag_500ms) begin counter_clear <= 1; state <= "b3"; end
+            "b3" : if (flag_break) begin counter_clear <= 1; state <= "n4"; end
+            "n4" : if (flag_350ms) begin counter_clear <= 1; state <= "b4"; end
+            "b4" : if (flag_break) begin counter_clear <= 1; state <= "n5"; end
+            "n5" : if (flag_150ms) begin counter_clear <= 1; state <= "b5"; end
+            "b5" : if (flag_break) begin counter_clear <= 1; state <= "n6"; end
+            "n6" : if (flag_500ms) begin counter_clear <= 1; state <= "b6"; end
+            "b6" : if (flag_break) begin counter_clear <= 1; state <= "n7"; end
+            "n7" : if (flag_350ms) begin counter_clear <= 1; state <= "b7"; end
+            "b7" : if (flag_break) begin counter_clear <= 1; state <= "n8"; end
+            "n8" : if (flag_150ms) begin counter_clear <= 1; state <= "b8"; end
+            "b8" : if (flag_break) begin counter_clear <= 1; state <= "n9"; end
+            "n9" : if (flag_650ms) begin counter_clear <= 1; state <= "bm"; end
+            "bm" : if (flag_650ms) begin counter_clear <= 1; state <= "n10"; end
+            "n10": if (flag_500ms) begin counter_clear <= 1; state <= "b10"; end
+            "b10": if (flag_break) begin counter_clear <= 1; state <= "n11"; end
+            "n11": if (flag_500ms) begin counter_clear <= 1; state <= "b11"; end
+            "b11": if (flag_break) begin counter_clear <= 1; state <= "n12"; end
+            "n12": if (flag_500ms) begin counter_clear <= 1; state <= "b12"; end
+            "b12": if (flag_break) begin counter_clear <= 1; state <= "n13"; end
+            "n13": if (flag_350ms) begin counter_clear <= 1; state <= "b13"; end
+            "b13": if (flag_break) begin counter_clear <= 1; state <= "n14"; end
+            "n14": if (flag_150ms) begin counter_clear <= 1; state <= "b14"; end
+            "b14": if (flag_break) begin counter_clear <= 1; state <= "n15"; end
+            "n15": if (flag_500ms) begin counter_clear <= 1; state <= "b15"; end
+            "b15": if (flag_break) begin counter_clear <= 1; state <= "n16"; end
+            "n16": if (flag_350ms) begin counter_clear <= 1; state <= "b16"; end
+            "b16": if (flag_break) begin counter_clear <= 1; state <= "n17"; end
+            "n17": if (flag_150ms) begin counter_clear <= 1; state <= "b17"; end
+            "b17": if (flag_break) begin counter_clear <= 1; state <= "n18"; end
+            "n18": if (flag_650ms) begin counter_clear <= 1; state <= "idle"; end
+
+        endcase
+    end
+
+    // -------------------------------------------------
+    // Speaker output selection
+    // -------------------------------------------------
+    assign speaker =
+        (state=="n1"  || state=="n2"  || state=="n3"  || state=="n6"  || state=="n9"  || state=="n18") ? a  :
+        (state=="n4"  || state=="n7"  || state=="n16") ? f  :
+        (state=="n5"  || state=="n8"  || state=="n14" || state=="n17") ? cH :
+        (state=="n10" || state=="n11" || state=="n12") ? eH :
+        (state=="n13") ? fH :
+        (state=="n15") ? gS : 1'b0;
+
+endmodule
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Tone Generator : A (440 Hz)
+// Author         : Tejesh
+// Organization   : SSIT Pvt Ltd
+// Clock          : 50 MHz (Edge Artix-7)
+//////////////////////////////////////////////////////////////////////////////////
+
+module a_440Hz(
+    input  clk,
+    output reg o_440Hz = 0
+);
+
+    parameter integer CLK_FREQ  = 50_000_000;
+    parameter integer TONE_FREQ = 440;
+
+    localparam integer DIV = CLK_FREQ / (2 * TONE_FREQ);
+    integer count = 0;
+
+    always @(posedge clk) begin
+        if (count >= DIV) begin
+            count   <= 0;
+            o_440Hz <= ~o_440Hz;
+        end else
+            count <= count + 1;
+    end
+
+endmodule
+
+
+
+
+
+
+module cH_523Hz(
+    input  clk,
+    output reg o_523Hz = 0
+);
+
+    parameter integer CLK_FREQ  = 50_000_000;
+    parameter integer TONE_FREQ = 523;
+
+    localparam integer DIV = CLK_FREQ / (2 * TONE_FREQ);
+    integer count = 0;
+
+    always @(posedge clk) begin
+        if (count >= DIV) begin
+            count   <= 0;
+            o_523Hz <= ~o_523Hz;
+        end else
+            count <= count + 1;
+    end
+
+endmodule
+
+
+
+
+
+module eH_659Hz(
+    input  clk,
+    output reg o_659Hz = 0
+);
+
+    parameter integer CLK_FREQ  = 50_000_000;
+    parameter integer TONE_FREQ = 659;
+
+    localparam integer DIV = CLK_FREQ / (2 * TONE_FREQ);
+    integer count = 0;
+
+    always @(posedge clk) begin
+        if (count >= DIV) begin
+            count   <= 0;
+            o_659Hz <= ~o_659Hz;
+        end else
+            count <= count + 1;
+    end
+
+endmodule
+
+
+
+
+
+
+module fH_698Hz(
+    input  clk,
+    output reg o_698Hz = 0
+);
+
+    parameter integer CLK_FREQ  = 50_000_000;
+    parameter integer TONE_FREQ = 698;
+
+    localparam integer DIV = CLK_FREQ / (2 * TONE_FREQ);
+    integer count = 0;
+
+    always @(posedge clk) begin
+        if (count >= DIV) begin
+            count   <= 0;
+            o_698Hz <= ~o_698Hz;
+        end else
+            count <= count + 1;
+    end
+
+endmodule
+
+
+
+
+
+module f_349Hz(
+    input  clk,
+    output reg o_349Hz = 0
+);
+
+    parameter integer CLK_FREQ  = 50_000_000;
+    parameter integer TONE_FREQ = 349;
+
+    localparam integer DIV = CLK_FREQ / (2 * TONE_FREQ);
+    integer count = 0;
+
+    always @(posedge clk) begin
+        if (count >= DIV) begin
+            count   <= 0;
+            o_349Hz <= ~o_349Hz;
+        end else
+            count <= count + 1;
+    end
+
+endmodule
+
+
+
+
+module gS_415Hz(
+    input  clk,
+    output reg o_415Hz = 0
+);
+
+    parameter integer CLK_FREQ  = 50_000_000;
+    parameter integer TONE_FREQ = 415;
+
+    localparam integer DIV = CLK_FREQ / (2 * TONE_FREQ);
+    integer count = 0;
+
+    always @(posedge clk) begin
+        if (count >= DIV) begin
+            count   <= 0;
+            o_415Hz <= ~o_415Hz;
+        end else
+            count <= count + 1;
+    end
+
+endmodule
+
+
+
+
+
+
+
